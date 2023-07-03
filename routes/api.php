@@ -3,6 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Dashboard\WorshipScheduleController;
+use App\Http\Controllers\Api\Dashboard\TaskController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +22,11 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('login', 'login');
 });
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::resource('dashboard', DashboardController::class);
+Route::middleware(['middleware' => 'auth:sanctum'])->group(function () {
+    Route::prefix('dashboard')->group(function () {
+        Route::resource('/task', TaskController::class);
+    });
+    Route::get('logout', [AuthController::class, 'logout']);
 });
+
+Route::get('worship', [WorshipScheduleController::class, 'index']);

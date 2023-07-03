@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\BaseController as BaseController;
 use Illuminate\Http\Request;
 use App\Models\User;
+use Exception;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Validator;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends BaseController
 {
@@ -22,6 +24,7 @@ class AuthController extends BaseController
         $validator = Validator::make($request->all(), [
             'name'              => 'required',
             'email'             => 'required|email',
+            'phone'             => 'required|unique:users,phone',
             'password'          => 'required',
             'repeat_password'   => 'required|same:password',
             'upload_photo'      => 'required|mimes:jpg,bmp,png',
@@ -29,7 +32,7 @@ class AuthController extends BaseController
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation Error.', $validator->errors());
+            return $this->sendError('Register failed', $validator->errors());
         }
 
         $input                  = $request->all();
@@ -48,21 +51,23 @@ class AuthController extends BaseController
             $file->move(public_path('public/cv'), $filename);
             $input['upload_cv'] = $filename;
         }
-
+        DB::beginTransaction();
         try {
             $user = User::create($input);
-            $success['token']       =  $user->createToken('MyApp')->plainTextToken;
-            $success['name']        =  $user->name;
-            $link                   = '/dashboard';
-            return $this->sendResponse(
-                $success,
-                'User register successfully.',
-                $link
-            );
+
+            DB::commit();
+            return response()->json([
+                'status'    => true,
+                'message'   => 'User Logged In Successfully',
+                'token'     => $user->createToken("API TOKEN")->plainTextToken,
+                'user'      => $user->name
+            ], 200);
         } catch (\Exception $e) {
+            DB::rollBack();
+
             return $this->sendError(
-                $e->getMessage(),
-                'User register unsuccessfully'
+                'User register unsuccessfully',
+                $e->getMessage()
             );
         }
     }
@@ -74,18 +79,53 @@ class AuthController extends BaseController
      */
     public function login(Request $request): JsonResponse
     {
-        if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
-            $user = Auth::user();
-            $success['token']       =  $user->createToken('MyApp')->plainTextToken;
-            $success['name']        =  $user->name;
-            $link                   = '/dashboard';
-            return $this->sendResponse(
-                $success,
-                'User login successfully.',
-                $link
+        try {
+            $validateUser = Validator::make(
+                $request->all(),
+                [
+                    'email' => 'required|email',
+                    'password' => 'required'
+                ]
             );
-        } else {
-            return $this->sendError('Unauthorised.', ['error' => 'Unauthorised']);
+
+            if ($validateUser->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'validation error',
+                    'errors' => $validateUser->errors()
+                ], 401);
+            }
+
+            if (!Auth::attempt($request->only(['email', 'password']))) {
+                return response()->json([
+                    'status'    => false,
+                    'message'   => 'Account not found'
+                ], 401);
+            }
+
+            $user = User::where('email', $request->email)->first();
+
+            return response()->json([
+                'status'    => true,
+                'message'   => 'User Logged In Successfully',
+                'token'     => $user->createToken("API TOKEN")->plainTextToken,
+                'user'      => $user->name
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => false,
+                'message' => $th->getMessage()
+            ], 500);
         }
+    }
+
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->tokens()->delete();
+
+        return $this->sendResponse(
+            [],
+            'Logout Successful'
+        );
     }
 }
