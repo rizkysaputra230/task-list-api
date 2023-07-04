@@ -24,6 +24,8 @@ Route::controller(AuthController::class)->group(function () {
 
 Route::middleware(['middleware' => 'auth:sanctum'])->group(function () {
     Route::prefix('dashboard')->group(function () {
+        Route::put('/task/{id}/update-status', [TaskController::class, 'updateStatus']);
+        Route::get('chart', [TaskController::class, 'chart']);
         Route::resource('/task', TaskController::class);
     });
     Route::get('logout', [AuthController::class, 'logout']);

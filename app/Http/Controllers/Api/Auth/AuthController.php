@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AuthController extends BaseController
 {
@@ -19,7 +20,7 @@ class AuthController extends BaseController
      *
      * @return \Illuminate\Http\Response
      */
-    public function register(Request $request): JsonResponse
+    public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name'              => 'required',
@@ -39,16 +40,16 @@ class AuthController extends BaseController
         $input['password']      = bcrypt($input['password']);
 
         if ($request->file('upload_photo')) {
-            $file           = $request->file('upload_photo');
-            $filename       = 'photo' . date('YmdHi') . $file->getClientOriginalName();
-            $file->move(public_path('public/profile'), $filename);
-            $input['upload_cv'] = $filename;
+            $filePhoto          = $request->file('upload_photo');
+            $filenamePhoto      = 'profile' . date('YmdHi') . $filePhoto->getClientOriginalName();
+            $filePhoto->move(storage_path('app/public/profile'), $filenamePhoto);
+            $input['upload_photo'] = $filenamePhoto;
         }
 
         if ($request->file('upload_cv')) {
             $file           = $request->file('upload_cv');
             $filename       = 'CV' . date('YmdHi') . $file->getClientOriginalName();
-            $file->move(public_path('public/cv'), $filename);
+            $file->move(storage_path('app/public/cv'), $filename);
             $input['upload_cv'] = $filename;
         }
         DB::beginTransaction();
@@ -60,7 +61,8 @@ class AuthController extends BaseController
                 'status'    => true,
                 'message'   => 'User Logged In Successfully',
                 'token'     => $user->createToken("API TOKEN")->plainTextToken,
-                'user'      => $user->name
+                'user'      => $user->name,
+                'photo'     => url('storage/profile/' . $user->upload_photo)
             ], 200);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -77,7 +79,7 @@ class AuthController extends BaseController
      *
      * @return \Illuminate\Http\Response
      */
-    public function login(Request $request): JsonResponse
+    public function login(Request $request)
     {
         try {
             $validateUser = Validator::make(
@@ -109,7 +111,8 @@ class AuthController extends BaseController
                 'status'    => true,
                 'message'   => 'User Logged In Successfully',
                 'token'     => $user->createToken("API TOKEN")->plainTextToken,
-                'user'      => $user->name
+                'user'      => $user->name,
+                'photo'     => url('storage/profile/' . $user->upload_photo)
             ], 200);
         } catch (\Throwable $th) {
             return response()->json([
@@ -119,7 +122,7 @@ class AuthController extends BaseController
         }
     }
 
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request)
     {
         $request->user()->tokens()->delete();
 
